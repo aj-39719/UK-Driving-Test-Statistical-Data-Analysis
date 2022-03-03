@@ -1,0 +1,239 @@
+---
+title: '**ST447: SUMMATIVE PROJECT 2021-22**'
+author: '*Candidate Number 39719*'
+date: "December 3rd 2021"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+---------------
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+### **INTRODUCTION :**
+XYZ has been learning to drive for a while and is considering taking the practical automobile test in the United Kingdom.There are two viable options:
+
+1. Take the practical test at the nearest test centre to his or her residence
+2. Take it at the LSE's nearest exam centre, i.e. Wood Green
+
+---------------
+
+### **PROFILE GENERATION :**
+
+*The profile of XYZ  :*
+
+> Age:  21 | 
+> Gender:  Male |
+> Home address:  Tolworth (London)
+
+---------------
+
+### **DATA PREPARATION :**
+
+The Data was extracted for both locations, i.e. Tolworth and Wood Green for a 7 year period. The data for the past 7 years only has been used mainly because there has been a significant change in modern automobiles in terms of driver and passenger safety features that have transformed the way modern vehicles are driven. 
+
+Also, as per [this notification from UK Government](https://www.gov.uk/government/news/driving-test-changes-4-december-2017), there were major changes in the way tests are conducted 2017 onwards, so much of the data for previous years has been omitted and  only the data from recent years is used for our analysis. 
+
+
+The data preparation was done in Excel entirely and the following transformations have been followed to manipulate the data for fitting the model
+
+
+Gender          | Value Specified
+-------------   | -------------
+Male            | 1
+Female          | 0
+
+
+Outcome         | Value Specified
+-------------   | -------------
+Pass            | 1
+Fail            | 0
+
+
+Location        | Value Specified
+-------------   | -------------
+Tolworth        | 1
+Wood Green      | 0
+
+-----------------
+
+### **CREATING A DATAFRAME :**
+
+```{R}
+
+#FIRST LOAD THE DATA INTO A VARIABLE
+combined_data = read.csv("CombinedData.csv", header = TRUE)
+
+#SEE THE EXTRACTED DATA AND ITS STRUCTURE
+head(combined_data)
+str(combined_data)
+
+#CHECK FOR MISSINNG AND NA VALUES
+nrow(combined_data[is.na(combined_data)])
+
+```
+*Great! We have no missing values in our dataset.*
+
+### **DATA VISUALIZATION**
+
+```{R}
+# INDEXING DATA FOR VISUALIZATION
+
+#First, lets extract data for 21 year old males in Tolworth and create a data frame from it
+criterion1 =(combined_data$LOC == 1) & (combined_data$GENDER ==1) & (combined_data$AGE == 21)
+df_c1 = data.frame(combined_data[criterion1,])
+
+#Now lets create a new data frame of mean passing rates in Tolworth 
+mean_tolworth = data.frame(aggregate(df_c1$OUTCOME, list(df_c1$YEAR), FUN=mean))
+colnames(mean_tolworth)<- c("Year", "Pass Percentage")
+
+#Lets convert this mean value to a percent value
+mean_tolworth$`Pass Percentage` = mean_tolworth$`Pass Percentage`*100
+head(mean_tolworth)
+
+#Next, we index data for 21 year old males in Wood Green and create its data frame
+criterion2 =(combined_data$LOC == 0) & (combined_data$GENDER ==1) & (combined_data$AGE == 21)
+df_c2 = data.frame(combined_data[criterion2,])
+
+#Again, we create a new data frame of mean passing rates in Wood Green 
+mean_woodgreen = data.frame(aggregate(df_c2$OUTCOME, list(df_c2$YEAR), FUN=mean))
+colnames(mean_woodgreen)<- c("Year", "Pass Percentage")
+mean_woodgreen$`Pass Percentage` = mean_woodgreen$`Pass Percentage`*100
+head(mean_woodgreen)
+
+
+#Finally, lets plot this on the graph and see any trends
+plot(mean_tolworth, xlab = "YEAR", ylab = "PASSING PERCENT", col = "blue",
+     type = "b" , main = "PASSING TREND OF 21 YEAR OLD MALES", lwd =3,
+     bty = "n", ylim = c(0,100), pch = 19 )
+
+#Lets add Wood Green data on this and add a legend
+lines(mean_woodgreen, col = "green", lwd = 3, type = "b", pch = 19)
+
+#Lastly, we add a legend to our plot
+legend(x = "topright", legend = c("Tolworth","Wood Green"), col = c("blue","green"), lwd = 3)
+
+```
+
+
+### **MODELLING THE DATA :**
+
+#### *STATISTICAL METHOD USED - MULTIPLE LOGISTIC REGRESSION*
+Since our variables are categorical in nature and the model needs to tell us the best possible choice out of two options, it is best to try fitting the model using a logistic regression.
+
+```{r}
+#We need to convert some of our data points to factors before we model them
+combined_data$OUTCOME <- as.factor(combined_data$OUTCOME) #To be predicted, dependent variable
+
+#We use the Generalized Linear Model function in R to do the regression on the combined data.
+CO_MODEL = glm(OUTCOME ~ AGE + GENDER + LOC ,data = combined_data, family = binomial(link = logit))
+
+#Now lets see the model results:
+summary(CO_MODEL)
+```
+
+#### *MODEL INTERPRETATION : *
+We see that the p-values for each of our variables is less than 0.05, indicating that each of them are indeed significant for our model! However, we would like to have the odds ratio and 95% confidence interval, instead of the log-transformed coefficient. Hence, we implemented the following code to exponentiate the coefficient:
+
+```{r}
+exp(coefficients(CO_MODEL))
+exp(confint(CO_MODEL))
+```
+
+>The above figures can be better understood with the following table 
+
+Variable          | Coefficient    | Lower 95       | Upper 95 
+-------------     | -------------  | -------------  | -------------
+AGE               | 0.9602997      | 0.9538083      | 0.9668318
+GENDER            | 1.3197507      | 1.2769362      | 1.3640169
+LOC               | 1.4160056      | 1.3681629      | 1.4655437
+
+##### *ODDS RATIO : *
+Taking Age as an example, after adjusting for all the other variables in the model, the odd ratio is 0.96 with the 95% Confidence interval being 0.954 and 0.966. 
+
+Similarly, all other variables constant, the odds ratio for Gender(Male-to-female) is 1.32 with the 95% Confidence interval being 1.277 and 1.364.
+
+Lastly, all other variables constant, the odds ratio for Location(Tolworth-to-WoodGreen) is 1.416 with the 95% Confidence interval being 1.368 and 1.465.
+
+##### *ODDS RATIO AS A PERECNTAGE : *
+```{r}
+#Since odds ratios can be daunting, lets convert them into percentages to develop a better understanding of these variable relationships.
+(exp(CO_MODEL$coefficients[-1])- 1)*100
+```
+  
+>*This figure means that the odds of a candidate passing decrease by 3.97 % for a 1 year increase in Age.*
+
+>*Additionally, since our gender coding is as 1 for male and 0 for females, this implies that the odds of males passing are 31.97% more than female's odds. *
+
+>*And finally, since our location coding is as 1 for Tolworth and 0 for Wood Green, we can infer that the odds of a candidate passing increase by 41.60 % if they take the test in the Tolworth.*
+
+
+#### NOW LETS PREDICT VALUES FOR OUR DATASET USING OUR OWN MODEL
+
+```{R}
+#We store the predicted values in a vector 
+R = predict(CO_MODEL, newdata = combined_data, type = "response")
+
+#Lets take a look at the head of our predicted values
+head(R)
+
+#Now lets round up these values to compare it to our original model
+R$converted.to.binary <- ifelse(R >= 0.5, 1, 0)
+
+#Lets have one final look at our predicted values
+head(R$converted.to.binary)
+
+```
+
+
+### **MODEL ACCURACY :**
+
+```{R}
+#Lets calculate the total predictions that were right and take the mean of all observations to see the accuracy of our model.
+
+accuracy <- mean((combined_data$OUTCOME) == (R$converted.to.binary))
+print(accuracy)
+
+```
+
+
+##### Hence, we see that our model has an accuracy of `r accuracy*100`% !
+
+### **EVALUATING BOTH THE OPTIONS : **
+
+```{R}
+#TEST 1 - SUCCESS RATE FOR TOLWORTH DRIVING CENTER -
+
+friend = data.frame(AGE = 21, GENDER = 1, LOC = 1)
+predicted_value_tolworth = predict(CO_MODEL, friend, type = "response")
+print(predicted_value_tolworth)
+
+```
+
+
+```{r}
+#TEST 2 - SUCCESS RATE FOR WOOD GREEN DRIVING CENTER -
+
+my_guy = data.frame(AGE = 21, GENDER = 1, LOC = 0)
+predicted_value_woodgreen = predict(CO_MODEL, my_guy, type = "response")
+print(predicted_value_woodgreen)
+```
+
+
+### **FINAL COMMENTS AND SUGGESTIONS : **
+
+We used Multiple Logistic Regression Analysis over categorical variables like Age, Gender and Location of Testing center to conclude the following:
+
+1. XYZ’s expected passing rate at the nearest test centre to his home is *`r predicted_value_tolworth*100` %*
+
+2. XYZ’s expected passing rate at the nearest test centre to the LSE is *`r predicted_value_woodgreen*100` %*
+
+3. Our friend has a better chance of passing the driving test if he gives it in the testing center near his home, i.e. Tolworth. 
+
+4. As seen from past data, he has better odds of passing since he is Male.
+
+5. However his chances decrease by roughly 4% every year he choses not to give the test, so he should give it as soon as possible. 
+
